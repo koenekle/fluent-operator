@@ -44,6 +44,9 @@ type FilterSpec struct {
 }
 
 type FilterItem struct {
+	// A user friendly alias name for this filter plugin.
+	// Used in metrics for distinction of each configured filter.
+	Alias string `json:"alias,omitempty"`
 	// Grep defines Grep Filter configuration.
 	Grep *filter.Grep `json:"grep,omitempty"`
 	// RecordModifier defines Record Modifier Filter configuration.
@@ -105,7 +108,7 @@ func (list ClusterFilterList) Load(sl plugins.SecretLoader) (string, error) {
 	sort.Sort(FilterByName(list.Items))
 
 	for _, item := range list.Items {
-		merge := func(p plugins.Plugin) error {
+		merge := func(p plugins.Plugin, alias string) error {
 			if p == nil || reflect.ValueOf(p).IsNil() {
 				return nil
 			}
@@ -118,6 +121,9 @@ func (list ClusterFilterList) Load(sl plugins.SecretLoader) (string, error) {
 			if item.Spec.MatchRegex != "" {
 				buf.WriteString(fmt.Sprintf("    Match_Regex    %s\n", item.Spec.MatchRegex))
 			}
+			if alias != "" {
+				buf.WriteString(fmt.Sprintf("    Alias    %s\n", alias))
+			}
 			kvs, err := p.Params(sl)
 			if err != nil {
 				return err
@@ -127,9 +133,9 @@ func (list ClusterFilterList) Load(sl plugins.SecretLoader) (string, error) {
 		}
 
 		for _, elem := range item.Spec.FilterItems {
-			for i := 0; i < reflect.ValueOf(elem).NumField(); i++ {
+			for i := 1; i < reflect.ValueOf(elem).NumField(); i++ {
 				p, _ := reflect.ValueOf(elem).Field(i).Interface().(plugins.Plugin)
-				if err := merge(p); err != nil {
+				if err := merge(p, elem.Alias); err != nil {
 					return "", err
 				}
 			}
